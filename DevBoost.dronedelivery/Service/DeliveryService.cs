@@ -20,16 +20,18 @@ namespace DevBoost.dronedelivery.Service
             _unitOfWork = unitOfWork;
         }
 
-        public bool IsPedidoValido(Pedido pedido, out double tempoTrajetoCompleto)
+        public bool IsPedidoValido(Pedido pedido, out string mensagemRejeicaoPedido)
         {
-            tempoTrajetoCompleto = 0;
+            mensagemRejeicaoPedido = string.Empty;
             
             // existe drone com capacidade maior que o peso do pedido (limite maximo 12kg)
             Drone drone = _unitOfWork.Drones.GetAll().Where(d => d.Capacidade >= pedido.Peso).FirstOrDefault();
 
             if (drone == null)
-                // return BadRequest("Rejeitado: Pedido acima do peso máximo aceito.");
+            {
+                mensagemRejeicaoPedido = "Pedido acima do peso máximo aceito.";
                 return false;
+            }
 
             // calcular distancia do trajeto
             // calcular tempo total (ida e volta) do trajeto (limite maximo 35m)
@@ -39,11 +41,13 @@ namespace DevBoost.dronedelivery.Service
 
             // tempo = distancia / velocidade
             // 80km / 40km/h = 2h
-            tempoTrajetoCompleto = calcularTempoTrajetoEmMinutos(distancia, drone.Velocidade);
+            int tempoTrajetoCompleto = calcularTempoTrajetoEmMinutos(distancia, drone.Velocidade);
 
             if (tempoTrajetoCompleto > drone.Autonomia)
-                //return BadRequest("Rejeitado: Fora da área de entrega.");
+            {
+                mensagemRejeicaoPedido = "Fora da área de entrega.";
                 return false;
+            }
 
             return true;
         }
