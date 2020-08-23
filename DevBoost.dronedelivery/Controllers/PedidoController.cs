@@ -100,8 +100,6 @@ namespace DevBoost.dronedelivery.Controllers
                 return BadRequest("Pedido rejeitado.");
 
             pedido.DataHora = DateTime.Now;
-            //todo: remover campo previsao entrega do banco de dados
-            //pedido.PrevisaoEntrega = pedido.DataHora.AddMinutes(Convert.ToInt32(tempoTrajetoCompleto / 2));
             pedido.Status = EnumStatusPedido.AguardandoEntregador;
 
             _unitOfWork.Pedidos.Insert(pedido);

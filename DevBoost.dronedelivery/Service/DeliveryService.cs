@@ -111,6 +111,8 @@ namespace DevBoost.dronedelivery.Service
 
         public void atualizarStatusDrones()
         {
+            criarDroneItinerario();
+
             var droneItinerarios = _unitOfWork.DroneItinerario.GetAll().Where(d => d.StatusDrone != EnumStatusDrone.Disponivel).ToList();
 
             foreach (var droneItinerario in droneItinerarios)
@@ -135,7 +137,10 @@ namespace DevBoost.dronedelivery.Service
 
                     if (droneItinerario.DataHora.AddMinutes(tempoEntrega) <= DateTime.Now)
                     {
-                        if (droneItinerario.Drone.AutonomiaRestante <= 5)
+                        // se autonomia ficar abaixo de 20%, recarrega
+                        int limiteAutonomiaParaRecarga = Convert.ToInt32(Math.Ceiling(droneItinerario.Drone.Autonomia * 0.2));
+
+                        if (droneItinerario.Drone.AutonomiaRestante <= limiteAutonomiaParaRecarga)
                             droneItinerario.StatusDrone = EnumStatusDrone.Carregando;
                         else
                             droneItinerario.StatusDrone = EnumStatusDrone.Disponivel;
@@ -157,8 +162,37 @@ namespace DevBoost.dronedelivery.Service
             _unitOfWork.Save();
         }
 
+        private void criarDroneItinerario()
+        {
+            var dronesId = _unitOfWork.Drones.GetAll().Select(d => d.Id).ToList();
+            
+            var droneItininerarios = _unitOfWork.DroneItinerario.GetAll().Select(i => i.DroneId).ToList();
+
+            var dronesSemItinerario = dronesId.Except(droneItininerarios).ToList();
+
+            foreach (var droneId in dronesSemItinerario)
+            {
+                DroneItinerario droneItinerario = new DroneItinerario();
+                droneItinerario.DataHora = DateTime.Now;
+                droneItinerario.Drone = _unitOfWork.Drones.GetById(droneId);
+                droneItinerario.DroneId = droneId;
+                droneItinerario.StatusDrone = EnumStatusDrone.Disponivel;
+
+                _unitOfWork.DroneItinerario.Insert(droneItinerario);
+            }
+
+            _unitOfWork.Save();
+        }
+
         private void distribuirPedidos()
         {
+            // pedidos mais antigos vao primeiro
+            var pedidos = _unitOfWork.Pedidos.GetAll().Where(p => p.Status == EnumStatusPedido.AguardandoEntregador)
+                .OrderBy(p => p.DataHora).ToList();
+
+            if (!pedidos.Any())
+                return;
+
             var droneItinerarios = _unitOfWork.DroneItinerario.GetAll()
                 .Where(d => d.StatusDrone == EnumStatusDrone.Disponivel)
                 .ToList();
@@ -171,13 +205,6 @@ namespace DevBoost.dronedelivery.Service
             var dronesDisponiveis = droneItinerarios.Select(d => d.Drone).OrderByDescending(d => d.Capacidade).ToList();
 
             if (!dronesDisponiveis.Any())
-                return;
-
-            // pedidos mais antigos vao primeiro
-            var pedidos = _unitOfWork.Pedidos.GetAll().Where(p => p.Status == EnumStatusPedido.AguardandoEntregador)
-                .OrderBy(p => p.DataHora).ToList();
-
-            if (!pedidos.Any())
                 return;
 
             IDictionary<Drone, IList<Pedido>> pedidosPorDrone = new Dictionary<Drone, IList<Pedido>>();
